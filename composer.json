@@ -1,27 +1,35 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "develop-dmitry/notification-service",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Notification microservice: bulk SMS/Email dispatch with priority queues, idempotency, and delivery status tracking.",
     "keywords": [
         "laravel",
-        "framework"
+        "notifications",
+        "rabbitmq",
+        "microservice"
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
-        "laravel/framework": "^13.8",
-        "laravel/tinker": "^3.0"
+        "php": "^8.4",
+        "dedoc/scramble": "^0.13.22",
+        "laravel/framework": "^12.0",
+        "laravel/tinker": "^2.10",
+        "spatie/laravel-data": "^4.23",
+        "vladimir-yuldashev/laravel-queue-rabbitmq": "^14.5"
     },
     "require-dev": {
+        "driftingly/rector-laravel": "^2.3",
         "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.9",
         "laravel/boost": "^2.2",
         "laravel/pail": "^1.2.5",
         "laravel/pao": "^1.0.6",
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
-        "phpunit/phpunit": "^12.5.12"
+        "phpunit/phpunit": "^12.5.12",
+        "rector/rector": "^2.4"
     },
     "autoload": {
         "psr-4": {
@@ -51,6 +59,16 @@
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test"
+        ],
+        "lint": "pint",
+        "lint:test": "pint --test",
+        "stan": "phpstan analyse --memory-limit=512M",
+        "rector": "rector process",
+        "rector:test": "rector process --dry-run",
+        "check": [
+            "@lint:test",
+            "@stan",
+            "@rector:test"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

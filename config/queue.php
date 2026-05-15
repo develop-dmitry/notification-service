@@ -1,5 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
+use PhpAmqpLib\Connection\AMQPLazyConnection;
+use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
+
 return [
 
     /*
@@ -87,6 +92,40 @@ return [
                 'database',
                 'deferred',
             ],
+        ],
+
+        'rabbitmq' => [
+            'driver' => 'rabbitmq',
+            'queue' => env('RABBITMQ_QUEUE', 'notifications.low'),
+            'connection' => AMQPLazyConnection::class,
+            'after_commit' => false,
+
+            'hosts' => [
+                [
+                    'host' => env('RABBITMQ_HOST', 'rabbitmq'),
+                    'port' => (int) env('RABBITMQ_PORT', 5672),
+                    'user' => env('RABBITMQ_USER', 'app'),
+                    'password' => env('RABBITMQ_PASSWORD', 'secret'),
+                    'vhost' => env('RABBITMQ_VHOST', '/'),
+                ],
+            ],
+
+            'options' => [
+                'ssl_options' => [
+                    'cafile' => env('RABBITMQ_SSL_CAFILE'),
+                    'local_cert' => env('RABBITMQ_SSL_LOCALCERT'),
+                    'local_key' => env('RABBITMQ_SSL_LOCALKEY'),
+                    'verify_peer' => env('RABBITMQ_SSL_VERIFY_PEER', true),
+                    'passphrase' => env('RABBITMQ_SSL_PASSPHRASE'),
+                ],
+
+                'queue' => [
+                    'job' => RabbitMQJob::class,
+                    'reroute_failed' => false,
+                ],
+            ],
+
+            'worker' => env('RABBITMQ_WORKER', 'default'),
         ],
 
     ],
