@@ -1,0 +1,544 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "Notification Service",
+        "version": "0.0.1"
+    },
+    "servers": [
+        {
+            "url": "http:\/\/nginx\/api"
+        }
+    ],
+    "paths": {
+        "\/v1\/notifications": {
+            "post": {
+                "operationId": "v1.notifications.store",
+                "tags": [
+                    "NotificationBatch"
+                ],
+                "parameters": [
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "description": "\u0423\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u044b\u0439 UUID v4 \u0437\u0430\u043f\u0440\u043e\u0441\u0430. \u041f\u043e\u0432\u0442\u043e\u0440 \u0441 \u0442\u0435\u043c \u0436\u0435 \u043a\u043b\u044e\u0447\u043e\u043c \u0438 \u0442\u0435\u043b\u043e\u043c \u0432\u0435\u0440\u043d\u0451\u0442 \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d\u043d\u044b\u0439 \u043e\u0442\u0432\u0435\u0442; \u043a\u043e\u043d\u0444\u043b\u0438\u043a\u0442 \u0442\u0435\u043b\u0430 \u2014 409.",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "example": "8b4e6f60-2c1f-4f2a-9f9b-3a7d5e1c2a91"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "$ref": "#\/components\/schemas\/CreateBatchData"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "`BatchAcceptedResource`",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#\/components\/schemas\/BatchAcceptedResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "\/v1\/_internal\/provider-callback": {
+            "post": {
+                "operationId": "v1.internal.provider-callback",
+                "tags": [
+                    "ProviderCallback"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "notification_id": {
+                                        "type": "string",
+                                        "format": "uuid"
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "delivered",
+                                            "failed"
+                                        ]
+                                    },
+                                    "error": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 1024
+                                    }
+                                },
+                                "required": [
+                                    "notification_id",
+                                    "status"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "notification_id": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "notification_id",
+                                        "status"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "const": "notification_not_found"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#\/components\/responses\/ValidationException"
+                    }
+                }
+            }
+        },
+        "\/v1\/subscribers\/{subscriberId}\/notifications": {
+            "get": {
+                "operationId": "v1.subscribers.notifications.index",
+                "tags": [
+                    "SubscriberNotifications"
+                ],
+                "parameters": [
+                    {
+                        "name": "subscriberId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#\/components\/schemas\/NotificationStatus"
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "schema": {
+                            "$ref": "#\/components\/schemas\/Channel"
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `NotificationResource`",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#\/components\/schemas\/NotificationResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#\/components\/responses\/ValidationException"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "BatchAcceptedResource": {
+                "type": "object",
+                "properties": {
+                    "batch_id": {
+                        "type": "string"
+                    },
+                    "accepted": {
+                        "type": "integer"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "batch_id",
+                    "accepted",
+                    "channel",
+                    "priority"
+                ],
+                "title": "BatchAcceptedResource"
+            },
+            "Channel": {
+                "type": "string",
+                "enum": [
+                    "sms",
+                    "email"
+                ],
+                "title": "Channel"
+            },
+            "CreateBatchData": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "$ref": "#\/components\/schemas\/Channel"
+                    },
+                    "priority": {
+                        "$ref": "#\/components\/schemas\/Priority"
+                    },
+                    "message": {
+                        "type": "string",
+                        "maxLength": 4096
+                    },
+                    "recipients": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "maxLength": 64
+                                },
+                                "address": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 10000
+                    }
+                },
+                "required": [
+                    "channel",
+                    "priority",
+                    "message",
+                    "recipients"
+                ],
+                "title": "CreateBatchData"
+            },
+            "NotificationResource": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "batch_id": {
+                        "type": "string"
+                    },
+                    "recipient_id": {
+                        "type": "string"
+                    },
+                    "recipient_address": {
+                        "type": "string"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "attempts_count": {
+                        "type": "string"
+                    },
+                    "last_error": {
+                        "type": "string"
+                    },
+                    "provider_message_id": {
+                        "type": "string"
+                    },
+                    "sent_at": {
+                        "type": "string"
+                    },
+                    "delivered_at": {
+                        "type": "string"
+                    },
+                    "failed_at": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "batch_id",
+                    "recipient_id",
+                    "recipient_address",
+                    "channel",
+                    "priority",
+                    "status",
+                    "attempts_count",
+                    "last_error",
+                    "provider_message_id",
+                    "sent_at",
+                    "delivered_at",
+                    "failed_at",
+                    "created_at"
+                ],
+                "title": "NotificationResource"
+            },
+            "NotificationStatus": {
+                "type": "string",
+                "enum": [
+                    "queued",
+                    "sent",
+                    "delivered",
+                    "failed"
+                ],
+                "title": "NotificationStatus"
+            },
+            "Priority": {
+                "type": "string",
+                "enum": [
+                    "high",
+                    "low"
+                ],
+                "title": "Priority"
+            }
+        },
+        "responses": {
+            "ValidationException": {
+                "description": "Validation error",
+                "content": {
+                    "application\/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Errors overview."
+                                },
+                                "errors": {
+                                    "type": "object",
+                                    "description": "A detailed description of each field that failed validation.",
+                                    "additionalProperties": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "required": [
+                                "message",
+                                "errors"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -26,7 +26,7 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
-        <env name="CACHE_STORE" value="array"/>
+        <env name="CACHE_STORE" value="redis"/>
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_HOST" value="postgres"/>
         <env name="DB_PORT" value="5432"/>
@@ -34,11 +34,16 @@
         <env name="DB_USERNAME" value="app"/>
         <env name="DB_PASSWORD" value="secret"/>
         <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="QUEUE_CONNECTION" value="rabbitmq"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="REDIS_HOST" value="redis"/>
         <env name="RABBITMQ_HOST" value="rabbitmq"/>
         <env name="RABBITMQ_USER" value="app"/>
         <env name="RABBITMQ_PASSWORD" value="secret"/>
+        <env name="MOCK_PROVIDER_FAILURE_RATE" value="0"/>
+        <env name="MOCK_PROVIDER_LATENCY_MS" value="0"/>
+        <env name="MOCK_EMAIL_USE_MAILPIT" value="false"/>
+        <env name="IDEMPOTENCY_TTL_SECONDS" value="3600"/>
+        <env name="MOCK_EMAIL_USE_MAILPIT" value="false"/>
     </php>
 </phpunit>

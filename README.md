@@ -1,58 +1,129 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Notification Service
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Микросервис уведомлений: bulk-рассылка SMS и Email через брокер сообщений с приоритезацией транзакционного трафика, идемпотентностью входящего API и отслеживанием статусов доставки.
 
-## About Laravel
+## Стек
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.4, Laravel 12
+- PostgreSQL 18 (хранилище)
+- Redis 8 (кэш / идемпотентность)
+- RabbitMQ 4 + `vladimir-yuldashev/laravel-queue-rabbitmq` (очереди `notifications.high` / `notifications.low`)
+- Mailpit (SMTP для локальной разработки)
+- `spatie/laravel-data` (DTO/валидация), `dedoc/scramble` (OpenAPI), Pint, Larastan, PHPUnit, Rector
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Архитектура
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+HTTP API ─┬─► CreateNotificationBatch ─► PG (batch + N notifications) ─► RabbitMQ ─► Worker ─► Provider (SMS/Email)
+          │                                                                                     │
+          └─► EnsureIdempotency (Redis SETNX)                              status: queued → sent ─► (callback) ─► delivered
+                                                                                     └─► transient → retry / permanent → failed
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+- **Bulk API**: `POST /api/v1/notifications` принимает `{ channel, priority?, message, recipients[] }`, требует `Idempotency-Key` и возвращает `202 { batch_id, accepted }`.
+- **История подписчика**: `GET /api/v1/subscribers/{id}/notifications` с фильтрами `status`, `channel` и пагинацией.
+- **Имитация webhook провайдера** (только `local` / `testing`): `POST /api/v1/_internal/provider-callback` переводит `sent → delivered | failed`.
+- **Воркер** (`SendNotificationJob`): `SELECT FOR UPDATE` → провайдер → запись статуса + `notification_attempts`. At-least-once через manual ack + idempotent re-check по `notification_id`.
+- **Retry**: `--tries=5 --backoff=5,15,60,300,900` (значения заданы в команде воркера). Permanent ошибки — мгновенный `failed` без повторов.
+- **Outbox-lite**: запись в БД коммитится первой, далее dispatch + `published_at`. Команда `notifications:reconcile` (Schedule everyMinute, withoutOverlapping) переопубликовывает `queued` без `published_at` старше grace-периода.
 
-## Contributing
+## Запуск
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
 
-## Code of Conduct
+Поднимутся сервисы: `app` (php-fpm), `nginx`, `worker`, `scheduler`, `postgres`, `redis`, `rabbitmq`, `mailpit`. Миграции выполняются автоматически при старте `app` (при `RUN_MIGRATIONS=1`).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Назначение      | URL                          |
+|-----------------|------------------------------|
+| API             | http://localhost:8080        |
+| OpenAPI         | http://localhost:8080/docs/api |
+| RabbitMQ UI     | http://localhost:15672 (app/secret) |
+| Mailpit UI      | http://localhost:8025        |
 
-## Security Vulnerabilities
+## Переменные окружения
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Имя | Назначение | По умолчанию |
+|-----|------------|--------------|
+| `QUEUE_CONNECTION` | Драйвер очереди | `rabbitmq` |
+| `MOCK_PROVIDER_FAILURE_RATE` | Доля случайных transient-ошибок мока (0..1) | `0` |
+| `MOCK_PROVIDER_LATENCY_MS` | Имитация задержки шлюза, мс | `0` |
+| `MOCK_EMAIL_USE_MAILPIT` | Реально отправлять письма через Mailpit | `false` |
+| `IDEMPOTENCY_TTL_SECONDS` | TTL снимка ответа по `Idempotency-Key` | `86400` |
 
-## License
+Спец-адреса мок-провайдеров:
+- `*fail*` → permanent failure (без retry)
+- `*flaky*` → transient failure (вызывает retry)
+- `*slow*` → искусственная задержка
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Примеры запросов
+
+Старт массовой рассылки:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/notifications \
+  -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "channel": "email",
+    "priority": "high",
+    "message": "Привет!",
+    "recipients": [
+      {"id": "user-1", "address": "ivan@example.com"},
+      {"id": "user-2", "address": "petr@example.com"}
+    ]
+  }'
+```
+
+История подписчика:
+
+```bash
+curl 'http://localhost:8080/api/v1/subscribers/user-1/notifications?status=delivered&channel=email'
+```
+
+Имитация webhook провайдера (только в local/testing):
+
+```bash
+curl -X POST http://localhost:8080/api/v1/_internal/provider-callback \
+  -H 'Content-Type: application/json' \
+  -d '{"notification_id": "<uuid>", "status": "delivered"}'
+```
+
+## Тесты
+
+```bash
+# полный прогон
+docker compose exec app php artisan test --compact
+
+# только unit
+docker compose exec app php artisan test --testsuite=Unit
+
+# только интеграционные (используют реальные Postgres / Redis / RabbitMQ)
+docker compose exec app php artisan test --testsuite=Integration
+```
+
+Интеграционные тесты переопределяют имена очередей на `test.notifications.*`, чтобы не конкурировать с фоновым `worker`-контейнером.
+
+## Качество кода
+
+Все проверки заведены как composer-скрипты:
+
+```bash
+composer lint        # pint --format agent (применить стиль)
+composer lint:test   # pint --test (только проверить)
+composer stan        # phpstan analyse (level 8 + larastan)
+composer rector      # rector process (применить)
+composer rector:test # rector process --dry-run
+composer check       # lint:test + stan + rector:test одной командой
+```
+
+## Полезные команды
+
+```bash
+docker compose exec app php artisan notifications:reconcile   # ручной запуск reconciler
+docker compose exec app php artisan route:list --except-vendor
+docker compose exec -e DB_DATABASE=notification_service_test app php artisan migrate:fresh
+docker compose logs -f worker                                 # логи воркера
+```

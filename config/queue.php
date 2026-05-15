@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use PhpAmqpLib\Connection\AMQPLazyConnection;
+use PhpAmqpLib\Connection\AMQPStreamConnection;
 use VladimirYuldashev\LaravelQueueRabbitMQ\Queue\Jobs\RabbitMQJob;
 
 return [
@@ -97,7 +97,7 @@ return [
         'rabbitmq' => [
             'driver' => 'rabbitmq',
             'queue' => env('RABBITMQ_QUEUE', 'notifications.low'),
-            'connection' => AMQPLazyConnection::class,
+            'connection' => AMQPStreamConnection::class,
             'after_commit' => false,
 
             'hosts' => [
@@ -122,6 +122,11 @@ return [
                 'queue' => [
                     'job' => RabbitMQJob::class,
                     'reroute_failed' => false,
+                    // Очереди переживают рестарт брокера; сообщения публикуются с delivery_mode=2 (persistent).
+                    'declare_durable' => true,
+                    'declare_exclusive' => false,
+                    'declare_auto_delete' => false,
+                    'publish_persistent' => true,
                 ],
             ],
 
