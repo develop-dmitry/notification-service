@@ -44,11 +44,7 @@ services:
     image: notification-service/app:dev
     container_name: ns-worker
     restart: unless-stopped
-    command: >
-      php artisan queue:work rabbitmq
-      --queue=notifications.high,notifications.low
-      --tries=5 --backoff=5,15,60,300,900
-      --max-time=3600 --sleep=1
+    command: /var/www/docker/worker/entrypoint.sh
     environment:
       <<: *app-env
       RUN_MIGRATIONS: "0"
